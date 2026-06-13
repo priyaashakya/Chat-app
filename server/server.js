@@ -12,11 +12,18 @@ import messageRouter from "./routes/messageRoutes.js";
 const app = express();
 const server = http.createServer(app);
 
-// middleware
+// Database connection
+connectDB();
+
+// Middleware
 app.use(express.json({ limit: "4mb" }));
 app.use(cors());
 
-// routes
+// Routes
+app.get("/", (req, res) => {
+  res.send("Chat App Backend Running");
+});
+
 app.get("/api/status", (req, res) => {
   res.send("Server is live");
 });
@@ -24,9 +31,11 @@ app.get("/api/status", (req, res) => {
 app.use("/api/auth", userRouter);
 app.use("/api/messages", messageRouter);
 
-// socket
+// Socket.IO
 export const io = new Server(server, {
-  cors: { origin: "*" },
+  cors: {
+    origin: "*",
+  },
 });
 
 export const userSocketMap = {};
@@ -41,24 +50,22 @@ io.on("connection", (socket) => {
   io.emit("getOnlineUsers", Object.keys(userSocketMap));
 
   socket.on("disconnect", () => {
-    delete userSocketMap[userId];
+    if (userId) {
+      delete userSocketMap[userId];
+    }
+
     io.emit("getOnlineUsers", Object.keys(userSocketMap));
   });
 });
 
-// start server safely (NO recursion)
-const PORT = process.env.PORT || 5000;
+// Local development only
+if (process.env.NODE_ENV !== "production") {
+  const PORT = process.env.PORT || 5000;
 
-async function startApp() {
-  try {
-    await connectDB();
-
-    server.listen(PORT, () => {
-      console.log(`🚀 Server running on port ${PORT}`);
-    });
-  } catch (err) {
-    console.log("❌ Failed to start server:", err.message);
-  }
+  server.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+  });
 }
 
-startApp();
+// Required for Vercel
+export default app;
