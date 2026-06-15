@@ -19,7 +19,7 @@ export const ChatProvider = ({ children }) => {
 
       if (data.success) {
         setUsers(data.users);
-        setUnseenMessages(data.unseenMessages);
+        setUnseenMessages(data.unseenMessages || {});
       }
     } catch (error) {
       toast.error(error.message);
@@ -33,6 +33,13 @@ export const ChatProvider = ({ children }) => {
 
       if (data.success) {
         setMessages(data.messages);
+
+        // Remove unread badge instantly
+        setUnseenMessages((prev) => {
+          const updated = { ...prev };
+          delete updated[userId];
+          return updated;
+        });
       }
     } catch (error) {
       toast.error(error.message);
@@ -61,25 +68,33 @@ export const ChatProvider = ({ children }) => {
   const subscribeToMessages = () => {
     if (!socket) return;
 
-    socket.on("newMessage", async (newMessage) => {
-      if (selectedUser && newMessage.senderId === selectedUser._id) {
-        newMessage.seen = true;
+    // Prevent duplicate listeners
+    socket.off("newMessage");
 
+    socket.on("newMessage", async (newMessage) => {
+      // Chat currently open
+      if (
+        selectedUser &&
+        String(newMessage.senderId) === String(selectedUser._id)
+      ) {
         setMessages((prev) => [...prev, newMessage]);
 
-        await axios.put(`/api/messages/mark/${newMessage._id}`);
+        try {
+          await axios.put(`/api/messages/mark/${newMessage._id}`);
+        } catch (error) {
+          console.log(error);
+        }
       } else {
+        // Increase unread count
         setUnseenMessages((prev) => ({
           ...prev,
-          [newMessage.senderId]: prev[newMessage.senderId]
-            ? prev[newMessage.senderId] + 1
-            : 1,
+          [newMessage.senderId]: (prev[newMessage.senderId] || 0) + 1,
         }));
       }
     });
   };
 
-  // Unsubscribe
+  // Remove listeners
   const unsubscribeFromMessages = () => {
     if (socket) {
       socket.off("newMessage");
@@ -89,7 +104,9 @@ export const ChatProvider = ({ children }) => {
   useEffect(() => {
     subscribeToMessages();
 
-    return () => unsubscribeFromMessages();
+    return () => {
+      unsubscribeFromMessages();
+    };
   }, [socket, selectedUser]);
 
   const value = {

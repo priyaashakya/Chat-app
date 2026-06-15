@@ -12,8 +12,8 @@ import messageRouter from "./routes/messageRoutes.js";
 const app = express();
 const server = http.createServer(app);
 
-// Database connection
-connectDB();
+// Connect Database
+await connectDB();
 
 // Middleware
 app.use(express.json({ limit: "4mb" }));
@@ -35,12 +35,16 @@ app.use("/api/messages", messageRouter);
 export const io = new Server(server, {
   cors: {
     origin: "*",
+    methods: ["GET", "POST", "PUT"],
   },
 });
 
 export const userSocketMap = {};
 
+// Socket Connection
 io.on("connection", (socket) => {
+  console.log("User Connected:", socket.id);
+
   const userId = socket.handshake.query.userId;
 
   if (userId) {
@@ -50,6 +54,8 @@ io.on("connection", (socket) => {
   io.emit("getOnlineUsers", Object.keys(userSocketMap));
 
   socket.on("disconnect", () => {
+    console.log("User Disconnected:", socket.id);
+
     if (userId) {
       delete userSocketMap[userId];
     }
@@ -58,14 +64,9 @@ io.on("connection", (socket) => {
   });
 });
 
-// Local development only
-if (process.env.NODE_ENV !== "production") {
-  const PORT = process.env.PORT || 5000;
+// Start Server
+const PORT = process.env.PORT || 5000;
 
-  server.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
-  });
-}
-
-// Required for Vercel
-export default app;
+server.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+});

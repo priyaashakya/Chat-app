@@ -5,14 +5,15 @@ import User from "../models/User.js";
 import cloudinary from "../lib/cloudinary.js";
 import { io, userSocketMap } from "../server.js";
 
+// Get users for sidebar
 export const getUsersForSidebar = async (req, res) => {
   try {
     const userId = req.user._id;
-    const filteredUsers = await User.find({ _id: { $ne: userId } }).select(
-      "-password",
-    );
 
-    // count no of msg not seen
+    const filteredUsers = await User.find({
+      _id: { $ne: userId },
+    }).select("-password");
+
     const unseenMessages = {};
 
     const promises = filteredUsers.map(async (user) => {
@@ -21,64 +22,109 @@ export const getUsersForSidebar = async (req, res) => {
         receiverId: userId,
         seen: false,
       });
+
       if (messages.length > 0) {
         unseenMessages[user._id] = messages.length;
       }
     });
+
     await Promise.all(promises);
-    res.json({ success: true, users: filteredUsers, unseenMessages });
+
+    res.json({
+      success: true,
+      users: filteredUsers,
+      unseenMessages,
+    });
   } catch (error) {
     console.log(error.message);
-    res.json({ success: false, message: error.message });
+
+    res.json({
+      success: false,
+      message: error.message,
+    });
   }
 };
 
-// get all messages for selected user
-
+// Get all messages for selected user
 export const getMessages = async (req, res) => {
   try {
     const { id: selectedUserId } = req.params;
     const myId = req.user._id;
+
     const messages = await Message.find({
       $or: [
-        { senderId: myId, receiverId: selectedUserId },
-        { senderId: selectedUserId, receiverId: myId },
+        {
+          senderId: myId,
+          receiverId: selectedUserId,
+        },
+        {
+          senderId: selectedUserId,
+          receiverId: myId,
+        },
       ],
     });
+
+    // Mark received messages as seen
     await Message.updateMany(
-      { senderId: selectedUserId, receiverId: myId },
-      { seen: true },
+      {
+        senderId: selectedUserId,
+        receiverId: myId,
+        seen: false,
+      },
+      {
+        seen: true,
+      },
     );
-    res.json({ success: true, message });
+
+    res.json({
+      success: true,
+      messages,
+    });
   } catch (error) {
     console.log(error.message);
-    res.json({ success: false, message: error.message });
+
+    res.json({
+      success: false,
+      message: error.message,
+    });
   }
 };
-// api to mark msg
+
+// Mark single message as seen
 export const markMessageAsSeen = async (req, res) => {
   try {
     const { id } = req.params;
-    await Message.findByIdAndUpdate(id, { seen: true });
 
-    res.json({ success: true });
+    await Message.findByIdAndUpdate(id, {
+      seen: true,
+    });
+
+    res.json({
+      success: true,
+    });
   } catch (error) {
     console.log(error.message);
-    res.json({ success: false, message: error.message });
+
+    res.json({
+      success: false,
+      message: error.message,
+    });
   }
 };
 
-// send msg to selected user
-
+// Send message
 export const sendMessages = async (req, res) => {
   try {
     const { text, image } = req.body;
+
     const receiverId = req.params.id;
     const senderId = req.user._id;
 
     let imageUrl;
+
     if (image) {
       const uploadResponse = await cloudinary.uploader.upload(image);
+
       imageUrl = uploadResponse.secure_url;
     }
 
@@ -88,16 +134,24 @@ export const sendMessages = async (req, res) => {
       text,
       image: imageUrl,
     });
-    // emit the new msgg to the receiver socket
 
+    // Send real-time message
     const receiverSocketId = userSocketMap[receiverId];
+
     if (receiverSocketId) {
       io.to(receiverSocketId).emit("newMessage", newMessage);
     }
 
-    res.json({ success: true, newMessage });
+    res.json({
+      success: true,
+      newMessage,
+    });
   } catch (error) {
     console.log(error.message);
-    res.json({ success: false, message: error.message });
+
+    res.json({
+      success: false,
+      message: error.message,
+    });
   }
 };

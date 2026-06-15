@@ -1,12 +1,13 @@
+console.log("Backend URL:", import.meta.env.VITE_BACKEND_URL);
 import { createContext, useEffect, useState } from "react";
 import axios from "axios";
 import toast from "react-hot-toast";
 import { io } from "socket.io-client";
 
 const backendUrl = import.meta.env.VITE_BACKEND_URL;
+
 axios.defaults.baseURL = backendUrl;
 
-// ✅ FIXED NAME (VERY IMPORTANT)
 export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
@@ -15,7 +16,6 @@ export const AuthProvider = ({ children }) => {
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [socket, setSocket] = useState(null);
 
-  // CHECK AUTH
   const checkAuth = async () => {
     try {
       if (!token) return;
@@ -29,11 +29,10 @@ export const AuthProvider = ({ children }) => {
         connectSocket(data.user);
       }
     } catch (error) {
-      toast.error(error.message);
+      console.log(error);
     }
   };
 
-  // LOGIN / SIGNUP
   const login = async (state, credentials) => {
     try {
       const { data } = await axios.post(`/api/auth/${state}`, credentials);
@@ -53,11 +52,11 @@ export const AuthProvider = ({ children }) => {
         toast.error(data.message);
       }
     } catch (error) {
-      toast.error(error.message);
+      console.log(error);
+      toast.error(error.response?.data?.message || error.message);
     }
   };
 
-  // LOGOUT
   const logout = () => {
     localStorage.removeItem("token");
     setToken(null);
@@ -74,7 +73,6 @@ export const AuthProvider = ({ children }) => {
     toast.success("Logged out successfully");
   };
 
-  // UPDATE PROFILE
   const updateProfile = async (body) => {
     try {
       const { data } = await axios.put("/api/auth/update-profile", body);
@@ -86,11 +84,10 @@ export const AuthProvider = ({ children }) => {
         toast.error(data.message);
       }
     } catch (error) {
-      toast.error(error.message);
+      toast.error(error.response?.data?.message || error.message);
     }
   };
 
-  // SOCKET CONNECTION
   const connectSocket = (userData) => {
     if (!userData || socket?.connected) return;
 
@@ -107,7 +104,6 @@ export const AuthProvider = ({ children }) => {
     });
   };
 
-  // INIT
   useEffect(() => {
     checkAuth();
   }, [token]);
